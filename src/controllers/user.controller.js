@@ -2,7 +2,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { User } from "../models/user.model.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import { deleteOnCloudinary, uploadOnCloudinary } from "../utils/cloudinary.js";
 import jwt from "jsonwebtoken";
 // import { Subscription } from "../models/subscription.model.js";
 
@@ -290,6 +290,8 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
   }
 
   //deletion from cloudinary
+  await deleteOnCloudinary(req.user.avatar);
+
   const user = await User.findByIdAndUpdate(
     req.user?._id,
     {
@@ -319,6 +321,10 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
   }
 
   //deletion from cloudinary
+  if (!req.user.coverImage) {
+    await deleteOnCloudinary(req.user.coverImage);
+  }
+
   const user = await User.findByIdAndUpdate(
     req.user?._id,
     {
@@ -372,7 +378,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
           $size: "$subscribedTo",
         },
         isSubscribed: {
-          $condition: {
+          $cond: {
             if: { $in: [req.user?._id, "$subscribers.subscriber"] },
             then: true,
             else: false,
@@ -394,14 +400,14 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
     },
   ]);
 
-  if (!channel?.length) {
+  if (!(channel?.length)) {
     throw new ApiError(404, "Channel does not exists");
   }
 
   return res
     .status(200)
     .json(
-      new ApiError(200, channel[0], "User channel details fetched successfully")
+      new ApiResponse(200, channel[0], "User channel details fetched successfully")
     );
 });
 
