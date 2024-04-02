@@ -53,20 +53,51 @@ const getVideoById = asyncHandler(async (req, res) => {
   //TODO: get video by id
 
   if (!req.user) {
-    throw new ApiError(400,"Unauthorized access connot fetch video")
+    throw new ApiError(400, "Unauthorized access connot fetch video");
   }
 
-  const video = await Video.findById(videoId);
+  const video = await Video.aggregate([
+    {
+      $match: {
+        _id: videoId,
+      },
+    },
+    {
+      $set: {
+        views: this.views + 1,
+      },
+    },
+    {
+      $merge: {
+        into: "videos",
+        on: "_id",
+        whenMatched: "replace",
+        whenNotMatched: "discard",
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "owner",
+        foreignField: "_id",
+        as: "owner",
+      },
+    },
+  ]);
 
   if (!video) {
     throw new ApiError(400, "Video not available invalid videoId");
   }
 
-  await User.findByIdAndUpdate(req.user._id,{
-    $set:{
-      watchHistory: this.watchHistory.push(video._id)
-    },{new: true}
-  })
+  await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set: {
+        watchHistory: this.watchHistory.push(video._id),
+      },
+    },
+    { new: true }
+  );
   res
     .status(200)
     .json(new ApiResponse(200, video, "Video fetched successfully"));
@@ -85,7 +116,7 @@ const updateVideo = asyncHandler(async (req, res) => {
   }
 
   if (video.owner !== req.user?._id) {
-    throw new ApiError(401,"Unauthorized access cannot update video")
+    throw new ApiError(401, "Unauthorized access cannot update video");
   }
 
   if (thumbnailLocalPath) {
