@@ -1,6 +1,5 @@
 import mongoose, { isValidObjectId } from "mongoose";
-import { Video } from "../models/video.model.js";
-import { User } from "../models/user.model.js";
+import { Video, User } from "../models/index.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -12,13 +11,11 @@ const getAllVideos = asyncHandler(async (req, res) => {
 });
 
 const publishAVideo = asyncHandler(async (req, res) => {
-  const { title, description } = req.body;
-  // TODO: get video, upload to cloudinary, create video
-
   if (req.files?.videoFile[0].mimetype.search("video") === -1) {
     throw new ApiError(400, "Video not found");
   }
 
+  const { title, description } = req.body;
   const user = req.user;
   const videoLocalPath = req.files?.videoFile[0].path;
   const thumbnailLocalPath = req.files?.thumbnail[0].path;
@@ -50,7 +47,10 @@ const publishAVideo = asyncHandler(async (req, res) => {
 
 const getVideoById = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
-  //TODO: get video by id
+
+  if (!isValidObjectId(videoId)) {
+    throw new ApiError(400, "Invalid Object Id");
+  }
 
   if (!req.user) {
     throw new ApiError(400, "Unauthorized access connot fetch video");
@@ -104,10 +104,13 @@ const getVideoById = asyncHandler(async (req, res) => {
 });
 
 const updateVideo = asyncHandler(async (req, res) => {
-  //TODO: update video details like title, description, thumbnail
   const { videoId } = req.params;
   const { title, description } = req.body;
   const thumbnailLocalPath = req.file?.path;
+
+  if (!isValidObjectId(videoId)) {
+    throw new ApiError(400, "Invalid Object Id");
+  }
 
   let video = await Video.findById(videoId);
 
@@ -147,12 +150,20 @@ const updateVideo = asyncHandler(async (req, res) => {
 
 const deleteVideo = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
-  //TODO: delete video
 
-  const video = await Video.findByIdAndDelete(videoId);
+  if (!isValidObjectId(videoId)) {
+    throw new ApiError(400, "Invalid Object Id");
+  }
+
+  const video = await Video.findOneAndDelete(
+    {
+      _id: videoId,
+      owner: req.user._id
+    }
+  );
 
   if (!video) {
-    throw new ApiError(400, "Video not available or unable to delete");
+    throw new ApiError(400, "Video not available or Unauthorized");
   }
 
   await deleteOnCloudinary(video.videoFile, "video");
@@ -164,8 +175,15 @@ const deleteVideo = asyncHandler(async (req, res) => {
 const togglePublishStatus = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
 
-  await Video.findByIdAndUpdate(
-    videoId,
+  if (!isValidObjectId(videoId)) {
+    throw new ApiError(400, "Invalid Object Id");
+  }
+
+  const video = await Video.findOneAndUpdate(
+    {
+      _id: videoId,
+      owner: req.user._id
+    },
     {
       $set: {
         isPublished: { $cond: [this.isPublished, false, true] },
@@ -173,6 +191,10 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
     },
     { new: true }
   );
+
+  if (!video) {
+    throw new ApiError(400,"Unauthorized or video not found");
+  }
 
   res
     .status(202)
