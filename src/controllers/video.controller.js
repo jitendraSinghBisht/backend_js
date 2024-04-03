@@ -6,8 +6,50 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { deleteOnCloudinary, uploadOnCloudinary } from "../utils/cloudinary.js";
 
 const getAllVideos = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query;
-  //TODO: get all videos based on query, sort, pagination
+  let { page, limit, query, sortBy, sortType } = req.query;
+
+  page = parseInt(page, 10) || 1;
+  limit = parseInt(limit, 10) || 10;
+  sortType = sortType == "asc" ? 1 : -1;
+
+  if (["views", "duration", "createdAt"].includes(sortBy) === -1) {
+    throw new ApiError(400, "Invalid sortBy parameter");
+  }
+
+  const data = await Video.aggregate([
+    {
+      $match: {
+        $text: {
+          $search: query,
+        },
+      },
+    },
+    {
+      $sort: {
+        sortBy: sortType,
+      },
+    },
+    {
+      $facet: {
+        metadata: [{ $count: "totalCount" }],
+        videos: [{ $skip: (page - 1) * limit }, { $limit: limit }],
+      },
+    },
+  ]);
+
+  if (!data) {
+    throw new ApiError(500, "Unable to fetch data from database");
+  }
+
+  res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        { totalVideos: data.metadata.totalCount, videos: data.videos },
+        "Videos fetched successfully"
+      )
+    );
 });
 
 const publishAVideo = asyncHandler(async (req, res) => {
@@ -155,12 +197,10 @@ const deleteVideo = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid Object Id");
   }
 
-  const video = await Video.findOneAndDelete(
-    {
-      _id: videoId,
-      owner: req.user._id
-    }
-  );
+  const video = await Video.findOneAndDelete({
+    _id: videoId,
+    owner: req.user._id,
+  });
 
   if (!video) {
     throw new ApiError(400, "Video not available or Unauthorized");
@@ -182,7 +222,7 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
   const video = await Video.findOneAndUpdate(
     {
       _id: videoId,
-      owner: req.user._id
+      owner: req.user._id,
     },
     {
       $set: {
@@ -193,7 +233,7 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
   );
 
   if (!video) {
-    throw new ApiError(400,"Unauthorized or video not found");
+    throw new ApiError(400, "Unauthorized or video not found");
   }
 
   res
