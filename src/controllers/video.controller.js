@@ -10,7 +10,7 @@ const getAllVideos = asyncHandler(async (req, res) => {
 
   page = parseInt(page, 10) || 1;
   limit = parseInt(limit, 10) || 10;
-  sortType = sortType == "asc" ? 1 : -1;
+  sortType = (sortType == "asc") ? 1 : -1;
 
   if (["views", "duration", "createdAt"].includes(sortBy) === -1) {
     throw new ApiError(400, "Invalid sortBy parameter");

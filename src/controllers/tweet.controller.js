@@ -31,7 +31,49 @@ const createTweet = asyncHandler(async (req, res) => {
 });
 
 const getUserTweets = asyncHandler(async (req, res) => {
-  // TODO: get user tweets  will use pagination
+  let { page, limit, sortType } = req.query;
+  const { userId } = req.params;
+
+  page = parseInt(page, 10) || 1;
+  limit = parseInt(limit, 10) || 10;
+  sortType = sortType == "asc" ? 1 : -1;
+
+  if (!isValidObjectId(userId)) {
+    throw new ApiError(400, "Invalid user id");
+  }
+
+  const data = await Tweet.aggregate([
+    {
+      $match: {
+        owner: userId,
+      },
+    },
+    {
+      $sort: {
+        createdAt: sortType,
+      },
+    },
+    {
+      $facet: {
+        metadata: [{ $count: "totalCount" }],
+        tweets: [{ $skip: (page - 1) * limit }, { $limit: limit }],
+      },
+    },
+  ]);
+
+  if (!data) {
+    throw new ApiError(500, "Unable to fetch data from database");
+  }
+
+  res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        { totalTweets: data.metadata.totalCount, tweets: data.tweets },
+        "Tweets fetched successfully"
+      )
+    );
 });
 
 const updateTweet = asyncHandler(async (req, res) => {
@@ -69,20 +111,16 @@ const updateTweet = asyncHandler(async (req, res) => {
 const deleteTweet = asyncHandler(async (req, res) => {
   const { tweetId } = req.params;
 
-  const tweet = await Tweet.findOneAndDelete(
-    {
-      _id: tweetId,
-      owner: req.user._id
-    }
-  );
+  const tweet = await Tweet.findOneAndDelete({
+    _id: tweetId,
+    owner: req.user._id,
+  });
 
   if (!video) {
     throw new ApiError(400, "Tweet not available or Unauthorized access");
   }
 
-  res
-    .status(200)
-    .json(new ApiResponse(200,{},"Tweet deleted successfully"))
+  res.status(200).json(new ApiResponse(200, {}, "Tweet deleted successfully"));
 });
 
 export {
