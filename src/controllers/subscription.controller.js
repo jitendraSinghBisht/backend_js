@@ -24,7 +24,9 @@ const toggleSubscription = asyncHandler(async (req, res) => {
     });
   }
 
-  res.status(200).json(new ApiResponse(200, {}, "Subscription toggled"));
+  res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Subscription toggled"));
 });
 
 const getUserChannelSubscribers = asyncHandler(async (req, res) => {
