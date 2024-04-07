@@ -1,13 +1,12 @@
 import mongoose, { isValidObjectId } from "mongoose";
-import { Like } from "../models/like.model.js";
+import { Like } from "../models/index.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 const toggleVideoLike = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
-  const user = req.user
-  //TODO: toggle like on video
+  const user = req.user;
 
   if (!isValidObjectId(videoId)) {
     throw new ApiError(400, "Invalid videoId");
@@ -21,9 +20,9 @@ const toggleVideoLike = asyncHandler(async (req, res) => {
 
   if (!like) {
     like = await Subscription.create({
-        likedBy: user._id,
-        reference: videoId,
-        model_type: "Video",
+      likedBy: user._id,
+      reference: videoId,
+      model_type: "Video",
     });
   }
 
@@ -34,8 +33,7 @@ const toggleVideoLike = asyncHandler(async (req, res) => {
 
 const toggleCommentLike = asyncHandler(async (req, res) => {
   const { commentId } = req.params;
-  const user = req.user
-  //TODO: toggle like on comment
+  const user = req.user;
 
   if (!isValidObjectId(commentId)) {
     throw new ApiError(400, "Invalid commentId");
@@ -49,9 +47,9 @@ const toggleCommentLike = asyncHandler(async (req, res) => {
 
   if (!like) {
     like = await Subscription.create({
-        likedBy: user._id,
-        reference: commentId,
-        model_type: "Comment",
+      likedBy: user._id,
+      reference: commentId,
+      model_type: "Comment",
     });
   }
 
@@ -62,8 +60,7 @@ const toggleCommentLike = asyncHandler(async (req, res) => {
 
 const toggleTweetLike = asyncHandler(async (req, res) => {
   const { tweetId } = req.params;
-  const user = req.user
-  //TODO: toggle like on tweet
+  const user = req.user;
 
   if (!isValidObjectId(tweetId)) {
     throw new ApiError(400, "Invalid tweetId");
@@ -77,9 +74,9 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
 
   if (!like) {
     like = await Subscription.create({
-        likedBy: user._id,
-        reference: tweetId,
-        model_type: "Tweet",
+      likedBy: user._id,
+      reference: tweetId,
+      model_type: "Tweet",
     });
   }
 
@@ -89,7 +86,43 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
 });
 
 const getLikedVideos = asyncHandler(async (req, res) => {
-  //TODO: get all liked videos
+  const user = req.user;
+
+  let allLikedVideos = await Like.aggregate([
+    {
+      $match: {
+        likedBy: user._id,
+        model_type: "Video",
+      },
+    },
+    {
+      $lookup: {
+        from: "videos",
+        localField: "reference",
+        foreignField: "_id",
+        as: "likedVideo",
+      },
+    },
+    {
+      $project: {
+        likedVideo: 1,
+        _id: 0,
+        likedBy: 0,
+        reference: 0,
+        model_type: 0,
+      },
+    },
+  ]);
+
+  if (!allLikedVideos) {
+    throw new ApiError(500, "Unable to fetch liked videos from database");
+  }
+
+  res
+    .status(200)
+    .json(
+      new ApiResponse(200, allLikedVideos, "Liked videos fetched successfully")
+    );
 });
 
 export {

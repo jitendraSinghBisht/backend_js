@@ -22,7 +22,31 @@ const getAllVideos = asyncHandler(async (req, res) => {
         $text: {
           $search: query,
         },
+        isPublished: true
       },
+    },
+    {
+      $lookup:{
+        from: "users",
+        localField: "owner",
+        foreignField: "_id",
+        as: "owner"
+      }
+    },
+    {
+      $project:{
+        videoFile: 1,
+        _id: 1,
+        thumbnail: 1,
+        title: 1,
+        description: 1,
+        duration: 1,
+        views: 1,
+        createdAt: 1,
+        "owner.username": 1,
+        "owner.fullName": 1,
+        "owner.avatar": 1
+      }
     },
     {
       $sort: {
